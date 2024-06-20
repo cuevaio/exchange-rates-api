@@ -1,6 +1,7 @@
+export const runtime = "edge";
+
 export async function GET() {
-  const url =
-    "https://cuantoestaeldolar.pe/_next/data/Nhze7u0ZXc8u_4onczCKt/cambio-de-dolar-online.json";
+  const url = "https://cuantoestaeldolar.pe";
   const options = {
     method: "GET",
     headers: {
@@ -12,15 +13,32 @@ export async function GET() {
       "sec-fetch-mode": "cors",
       "sec-fetch-site": "same-origin",
     },
+    next: { revalidate: 60 },
   };
 
   try {
     const response = await fetch(url, options);
-    const data = await response.json();
-    console.log(data);
+
+    const page = await response.text();
+
+    // inside         <script id="__NEXT_DATA__" type="application/json">
+
+    const match = page.match(
+      /<script id="__NEXT_DATA__" type="application\/json">(.+?)<\/script>/
+    );
+
+    if (!match) {
+      return Response.json(
+        { error: "Ups, it doesn't love you" },
+        { status: 500 }
+      );
+    }
+
+    const data = JSON.parse(match[1]);
+    console.log(data.props.pageProps.onlineExchangeHouses);
 
     const er: Array<{ entity: string; buy: number; sell: number }> =
-      data.pageProps.onlineExchangeHouses.map((ex: any) => ({
+      data.props.pageProps.onlineExchangeHouses.map((ex: any) => ({
         entity: ex.title as string,
         buy: Number(ex.rates.buy.cost),
         sell: Number(ex.rates.sale.cost),
@@ -30,15 +48,15 @@ export async function GET() {
     const buyAvg = er.reduce((acc, curr) => acc + curr.buy, 0) / er.length;
 
     return Response.json({
+      updatedAt: new Date().toISOString(),
       meta: {
-        sellAvg,
-        buyAvg,
+        sellAvg: Math.round(sellAvg * 1000) / 1000,
+        buyAvg: Math.round(buyAvg * 1000) / 1000,
         count: er.length,
       },
       data: er,
     });
   } catch (error) {
-    console.error(error);
     return Response.json({ error: "error" }, { status: 500 });
   }
 }
