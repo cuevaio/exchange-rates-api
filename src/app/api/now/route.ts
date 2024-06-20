@@ -1,5 +1,5 @@
 export const runtime = "edge";
-export const revalidate = 15;
+export const revalidate = 5;
 
 export async function GET() {
   const url = "https://cuantoestaeldolar.pe";
@@ -40,6 +40,14 @@ export async function GET() {
         entity: ex.title as string,
         buy: Number(ex.rates.buy.cost),
         sell: Number(ex.rates.sale.cost),
+        // replace all ced to cuevaio ignore case
+        // replace "cuanto-esta-el-dolar" to "cuevaio"
+        // replace "Cuanto_esta_el_Dolar" to "cuevaio"
+        website: ex.site
+          .replace(/ced/gi, "cuevaio")
+          .replace(/cuanto-esta-el-dolar/gi, "cuevaio")
+          .replace(/Cuanto_esta_el_Dolar/gi, "cuevaio"),
+        banks: ex.bank ? ex.bank.split(",").map((x: string) => x.trim()) : [],
       }));
 
     const sellAvg = er.reduce((acc, curr) => acc + curr.sell, 0) / er.length;
@@ -51,8 +59,18 @@ export async function GET() {
     return Response.json({
       updatedAt: new Date().toISOString(),
       best: {
-        maxBuy: er.find((e) => e.buy === maxBuy),
-        minSell: er.find((e) => e.sell === minSell),
+        maxBuy: {
+          ...er.find((e) => e.buy === maxBuy),
+          value: maxBuy,
+          buy: undefined,
+          sell: undefined,
+        },
+        minSell: {
+          ...er.find((e) => e.sell === minSell),
+          value: minSell,
+          buy: undefined,
+          sell: undefined,
+        },
       },
       meta: {
         buyAvg: Math.round(buyAvg * 1000) / 1000,
