@@ -3,27 +3,342 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
-  --background-start-rgb: 214, 219, 220;
-  --background-end-rgb: 255, 255, 255;
+  color-scheme: dark;
+  --font-space-grotesk: "Space Grotesk", sans-serif;
+  --font-geist-mono: "Geist Mono", monospace;
+  --background: #050505;
+  --background-elevated: rgba(255, 255, 255, 0.025);
+  --foreground: rgba(255, 255, 255, 0.96);
+  --muted: rgba(255, 255, 255, 0.54);
+  --soft: rgba(255, 255, 255, 0.1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --foreground-rgb: 255, 255, 255;
-    --background-start-rgb: 0, 0, 0;
-    --background-end-rgb: 0, 0, 0;
-  }
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--background);
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-      to bottom,
-      transparent,
-      rgb(var(--background-end-rgb))
-    )
-    rgb(var(--background-start-rgb));
+  min-height: 100vh;
+  margin: 0;
+  background: linear-gradient(180deg, #070707 0%, #040404 100%);
+  color: var(--foreground);
+  font-family: var(--font-space-grotesk);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.page-shell {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.page-column {
+  position: relative;
+  z-index: 1;
+  width: min(44rem, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2rem 0 5rem;
+}
+
+.page-header {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 0 2rem;
+}
+
+.page-kicker {
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-family: var(--font-geist-mono);
+}
+
+.page-title {
+  margin: 0;
+  max-width: 13ch;
+  font-size: clamp(2.3rem, 6vw, 4.4rem);
+  line-height: 0.98;
+  letter-spacing: -0.05em;
+}
+
+.page-copy {
+  margin: 0;
+  max-width: 34rem;
+  font-size: 0.98rem;
+  line-height: 1.8;
+  color: var(--muted);
+}
+
+.page-footer {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.page-footer p {
+  margin: 0;
+}
+
+.page-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+.page-footer a {
+  transition: color 150ms ease;
+}
+
+.page-footer a:hover {
+  color: var(--foreground);
+}
+
+.page-glow {
+  position: absolute;
+  inset: -20% auto auto 50%;
+  width: 45rem;
+  height: 45rem;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.04), transparent 62%);
+  filter: blur(40px);
+  pointer-events: none;
+}
+
+.page-noise {
+  position: absolute;
+  inset: 0;
+  opacity: 0.08;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 3px 3px, 3px 3px;
+  mask-image: radial-gradient(circle at center, black, transparent 85%);
+}
+
+.rates-panel {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.1rem 0;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.summary-item {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem 0;
+  background: var(--background-elevated);
+}
+
+.summary-label,
+.summary-meta,
+.rates-meta,
+.house-banks,
+.rate-label {
+  color: var(--muted);
+}
+
+.summary-label,
+.rate-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: var(--font-geist-mono);
+}
+
+.summary-value {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.summary-meta,
+.house-banks,
+.rates-meta,
+.page-footer {
+  line-height: 1.6;
+}
+
+.rates-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.82rem;
+}
+
+.rates-status {
+  display: flex;
+  gap: 0.9rem;
+  flex-wrap: wrap;
+}
+
+.sort-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-family: var(--font-geist-mono);
+}
+
+.sort-trigger {
+  font-family: var(--font-space-grotesk);
+}
+
+.houses-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.house-row {
+  padding: 0;
+  background: transparent;
+}
+
+.house-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+  padding: 0.95rem 0.75rem;
+  transition: background 150ms ease, transform 150ms ease;
+}
+
+.house-link:hover {
+  background: rgba(255, 255, 255, 0.02);
+  transform: translateY(-1px);
+}
+
+.house-main {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
+}
+
+.house-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.65rem;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+
+.house-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: white;
+}
+
+.house-logo-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.house-name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.1rem;
+}
+
+.house-name-row strong {
+  font-size: 0.98rem;
+}
+
+.house-banks {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.house-rates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(4.7rem, auto));
+  gap: 1rem;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.house-rates strong {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.98rem;
+}
+
+@media (max-width: 768px) {
+  .page-column {
+    width: min(44rem, calc(100% - 1.25rem));
+    padding-top: 1.2rem;
+  }
+
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rates-meta,
+  .page-footer,
+  .house-link {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .page-footer {
+    justify-content: flex-start;
+  }
+
+  .sort-control {
+    align-items: flex-start;
+  }
+
+  .house-rates {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    text-align: left;
+  }
+}
+
+@media (min-width: 768px) {
+  .page-footer {
+    flex-direction: row;
+    align-items: center;
+  }
 }
 
 @layer utilities {

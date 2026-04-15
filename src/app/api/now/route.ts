@@ -7,6 +7,7 @@ type ExchangeHouse = {
   sell: number;
   website: string;
   banks: string[];
+  logo: string | null;
 };
 
 const MIN_RATE = 3;
@@ -24,6 +25,48 @@ function splitBanks(bank: string) {
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
+}
+
+function sanitizeLogoUrl(url?: string | null) {
+  if (!url) {
+    return null;
+  }
+
+  const trimmed = url.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.startsWith("//")) {
+    return `https:${trimmed}`;
+  }
+
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed.replace(/^http:\/\//i, "https://");
+  }
+
+  return null;
+}
+
+function resolveLogoUrl(house: {
+  img?: string;
+  dataConverter?: {
+    logo?: string | null;
+  };
+}) {
+  const preferredLogo = sanitizeLogoUrl(house.dataConverter?.logo ?? null);
+  const fallbackLogo = sanitizeLogoUrl(house.img ?? null);
+
+  if (preferredLogo) {
+    return preferredLogo;
+  }
+
+  if (fallbackLogo && !fallbackLogo.includes("1700582713774-tkambio.svg")) {
+    return fallbackLogo;
+  }
+
+  return null;
 }
 
 function isValidEntity(entity: string) {
@@ -111,8 +154,12 @@ function parseExchangeHouses(payload: string): ExchangeHouse[] {
 
   const exchangeHouses = JSON.parse(exchangeHousesJson) as Array<{
     title?: string;
+    img?: string;
     site?: string;
     bank?: string;
+    dataConverter?: {
+      logo?: string | null;
+    };
     rates?: {
       buy?: { cost?: string | number | null };
       sale?: { cost?: string | number | null };
@@ -126,6 +173,7 @@ function parseExchangeHouses(payload: string): ExchangeHouse[] {
       const sell = Number(house.rates?.sale?.cost ?? Number.NaN);
       const website = sanitizeWebsite(house.site?.trim() ?? "");
       const banks = house.bank ? splitBanks(house.bank) : [];
+      const logo = resolveLogoUrl(house);
 
       return {
         entity,
@@ -133,6 +181,7 @@ function parseExchangeHouses(payload: string): ExchangeHouse[] {
         sell,
         website,
         banks,
+        logo,
       };
     })
     .filter(
