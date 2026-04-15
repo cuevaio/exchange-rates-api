@@ -1,72 +1,205 @@
 export const runtime = "edge";
 export const revalidate = 5;
 
-export async function GET() {
-  const url = "https://cuantoestaeldolar.pe";
-  const options = {
-    method: "GET",
-    headers: {
-      authority: "cuantoestaeldolar.pe",
-      accept: "/",
-      "accept-language": "en-US,en;q=0.9",
-      referer: "https://cuantoestaeldolar.pe/",
-      "sec-ch-ua-mobile": "?0",
-      "sec-fetch-mode": "cors",
-      "sec-fetch-site": "same-origin",
-    },
-  };
+type ExchangeHouse = {
+  entity: string;
+  buy: number;
+  sell: number;
+  website: string;
+  banks: string[];
+};
 
-  try {
-    const response = await fetch(url, options);
+const MIN_RATE = 3;
+const MAX_RATE = 5;
 
-    const page = await response.text();
+function sanitizeWebsite(site: string) {
+  return site
+    .replace(/ced/gi, "cuevaio")
+    .replace(/cuanto-esta-el-dolar/gi, "cuevaio")
+    .replace(/Cuanto_esta_el_Dolar/gi, "cuevaio");
+}
 
-    // inside <script id="__NEXT_DATA__" type="application/json">
-    const match = page.match(
-      /<script id="__NEXT_DATA__" type="application\/json">(.+?)<\/script>/
-    );
+function splitBanks(bank: string) {
+  return bank
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
 
-    if (!match) {
-      return Response.json(
-        { error: "Ups, it doesn't love you" },
-        { status: 500 }
-      );
+function isValidEntity(entity: string) {
+  const normalized = entity.trim().toLowerCase();
+
+  if (!normalized) {
+    return false;
+  }
+
+  return !normalized.startsWith("prueba") && !normalized.includes("test");
+}
+
+function decodeFlightChunks(html: string) {
+  const chunks = Array.from(
+    html.matchAll(/self\.__next_f\.push\(\[1,\s*"((?:\\.|[^"\\])*)"\]\)/g)
+  );
+
+  if (chunks.length === 0) {
+    return null;
+  }
+
+  return chunks
+    .map((chunk) => JSON.parse(`"${chunk[1]}"`) as string)
+    .join("");
+}
+
+function extractExchangeHousesJson(payload: string) {
+  const marker = '"exchangeHouses":[';
+  const start = payload.indexOf(marker);
+
+  if (start === -1) {
+    return null;
+  }
+
+  let cursor = start + marker.length - 1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (; cursor < payload.length; cursor += 1) {
+    const char = payload[cursor];
+
+    if (escaped) {
+      escaped = false;
+      continue;
     }
 
-    const data = JSON.parse(match[1]);
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
 
-    const er: Array<{ entity: string; buy: number; sell: number }> =
-      data.props.pageProps.onlineExchangeHouses.map((ex: any) => ({
-        entity: ex.title as string,
-        buy: Number(ex.rates.buy.cost),
-        sell: Number(ex.rates.sale.cost),
-        // replace all ced to cuevaio ignore case
-        // replace "cuanto-esta-el-dolar" to "cuevaio"
-        // replace "Cuanto_esta_el_Dolar" to "cuevaio"
-        website: ex.site
-          .replace(/ced/gi, "cuevaio")
-          .replace(/cuanto-esta-el-dolar/gi, "cuevaio")
-          .replace(/Cuanto_esta_el_Dolar/gi, "cuevaio"),
-        banks: ex.bank ? ex.bank.split(",").map((x: string) => x.trim()) : [],
-      }));
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
 
-    const sellAvg = er.reduce((acc, curr) => acc + curr.sell, 0) / er.length;
-    const buyAvg = er.reduce((acc, curr) => acc + curr.buy, 0) / er.length;
+    if (inString) {
+      continue;
+    }
 
-    const minSell = Math.min(...er.map((e) => e.sell));
-    const maxBuy = Math.max(...er.map((e) => e.buy));
+    if (char === "[") {
+      depth += 1;
+      continue;
+    }
+
+    if (char === "]") {
+      depth -= 1;
+
+      if (depth === 0) {
+        return payload.slice(start + marker.length - 1, cursor + 1);
+      }
+    }
+  }
+
+  return null;
+}
+
+function parseExchangeHouses(payload: string): ExchangeHouse[] {
+  const exchangeHousesJson = extractExchangeHousesJson(payload);
+
+  if (!exchangeHousesJson) {
+    return [];
+  }
+
+  const exchangeHouses = JSON.parse(exchangeHousesJson) as Array<{
+    title?: string;
+    site?: string;
+    bank?: string;
+    rates?: {
+      buy?: { cost?: string | number | null };
+      sale?: { cost?: string | number | null };
+    };
+  }>;
+
+  return exchangeHouses
+    .map((house) => {
+      const entity = house.title?.trim() ?? "";
+      const buy = Number(house.rates?.buy?.cost ?? Number.NaN);
+      const sell = Number(house.rates?.sale?.cost ?? Number.NaN);
+      const website = sanitizeWebsite(house.site?.trim() ?? "");
+      const banks = house.bank ? splitBanks(house.bank) : [];
+
+      return {
+        entity,
+        buy,
+        sell,
+        website,
+        banks,
+      };
+    })
+    .filter(
+      (house) =>
+        isValidEntity(house.entity) &&
+        Number.isFinite(house.buy) &&
+        Number.isFinite(house.sell) &&
+        house.buy >= MIN_RATE &&
+        house.buy <= MAX_RATE &&
+        house.sell >= MIN_RATE &&
+        house.sell <= MAX_RATE
+    );
+}
+
+export async function GET() {
+  const url = "https://cuantoestaeldolar.pe/cambio-de-dolar-online";
+
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        accept:
+          "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "accept-language": "en-US,en;q=0.9",
+        referer: "https://cuantoestaeldolar.pe/",
+        "sec-fetch-dest": "document",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-site": "same-origin",
+        "user-agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36",
+      },
+    });
+
+    if (!response.ok) {
+      return Response.json({ error: "upstream error" }, { status: 502 });
+    }
+
+    const page = await response.text();
+    const payload = decodeFlightChunks(page);
+
+    if (!payload) {
+      return Response.json({ error: "payload not found" }, { status: 500 });
+    }
+
+    const houses = parseExchangeHouses(payload);
+
+    if (houses.length === 0) {
+      return Response.json({ error: "rates not found" }, { status: 500 });
+    }
+
+    const sellAvg = houses.reduce((acc, curr) => acc + curr.sell, 0) / houses.length;
+    const buyAvg = houses.reduce((acc, curr) => acc + curr.buy, 0) / houses.length;
+
+    const minSell = Math.min(...houses.map((house) => house.sell));
+    const maxBuy = Math.max(...houses.map((house) => house.buy));
 
     return Response.json({
       updatedAt: new Date().toISOString(),
       best: {
         maxBuy: {
-          ...er.find((e) => e.buy === maxBuy),
+          ...houses.find((house) => house.buy === maxBuy),
           value: maxBuy,
           buy: undefined,
           sell: undefined,
         },
         minSell: {
-          ...er.find((e) => e.sell === minSell),
+          ...houses.find((house) => house.sell === minSell),
           value: minSell,
           buy: undefined,
           sell: undefined,
@@ -75,11 +208,11 @@ export async function GET() {
       meta: {
         buyAvg: Math.round(buyAvg * 1000) / 1000,
         sellAvg: Math.round(sellAvg * 1000) / 1000,
-        count: er.length,
+        count: houses.length,
       },
-      houses: er,
+      houses,
     });
-  } catch (error) {
+  } catch {
     return Response.json({ error: "error" }, { status: 500 });
   }
 }
